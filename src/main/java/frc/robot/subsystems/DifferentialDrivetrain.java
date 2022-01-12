@@ -8,13 +8,20 @@ import com.ctre.phoenix.motorcontrol.TalonFXFeedbackDevice;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import com.ctre.phoenix.sensors.SensorInitializationStrategy;
 
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.kinematics.DifferentialDriveKinematics;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 
 public class DifferentialDrivetrain extends SubsystemBase {
+  public SlewRateLimiter rotationFilter = new SlewRateLimiter(Constants.SLEW_RATE_LIMIT_ROTATE);
+  public SlewRateLimiter accelerationFilter = new SlewRateLimiter(Constants.SLEW_RATE_LIMIT_ACCEL);
+
   private final WPI_TalonFX m_leftFront = new WPI_TalonFX(Constants.LEFT_FRONT_DRIVE_MOTOR);
   private final WPI_TalonFX m_leftRear = new WPI_TalonFX(Constants.LEFT_REAR_DRIVE_MOTOR);
   private final WPI_TalonFX m_rightFront = new WPI_TalonFX(Constants.RIGHT_FRONT_DRIVE_MOTOR);
@@ -22,6 +29,8 @@ public class DifferentialDrivetrain extends SubsystemBase {
 
   private final MotorControllerGroup m_leftGroup = new MotorControllerGroup(m_leftFront, m_leftRear);
   private final MotorControllerGroup m_rightGroup = new MotorControllerGroup(m_rightFront, m_rightRear);
+
+  private final DifferentialDrive drive = new DifferentialDrive(m_leftGroup, m_rightGroup);
 
   public static final double kMaxSpeed = 3.0; // meters per second
   public static final double kMaxAngularSpeed = 2 * Math.PI; // one rotation per second
@@ -72,5 +81,21 @@ public class DifferentialDrivetrain extends SubsystemBase {
   @Override
   public void periodic() {
     // This method will be called once per scheduler run
+  }
+
+  public void moveWithJoysticks(XboxController driverController) {
+
+    // Get axis values for speed and rotational speed
+    double xSpeed = driverController.getLeftY();
+    double zRotation_rate = -1 * driverController.getLeftX();
+
+    accelerationFilter.calculate(xSpeed);
+    rotationFilter.calculate(zRotation_rate);
+
+    // Drive Robot with commanded linear velocity and yaw rate commands
+    drive.arcadeDrive(xSpeed, zRotation_rate);
+
+    SmartDashboard.putNumber("X speed commanded by driver", driverController.getLeftY());
+    SmartDashboard.putNumber("zRotation Rate Commanded by driver", driverController.getLeftX());
   }
 }
